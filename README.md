@@ -1,14 +1,16 @@
 # npltk
 
-Nepali Language Processing Toolkit focused on practical tokenization and normalization.
+Nepali Language Processing Toolkit focused on practical tokenization, normalization, and lemmatization.
 
 Current stable public entry point:
 - `create_tokenizer` (top-level API)
+- `Lemmatizer` (top-level API)
 
 The project also includes:
 - A configurable normalizer pipeline
 - Stopword removal utility
 - Rule-based and hybrid tokenizer engines under one interface
+- Hybrid Nepali lemmatizer pipeline (cache -> dictionary -> rules -> fallback)
 - Example scripts and a research notebook for model training/evaluation
 
 ## Package Layout
@@ -17,6 +19,10 @@ The project also includes:
 - `src/npltk/tokenizer/factory.py`: unified tokenizer constructor
 - `src/npltk/tokenizer/tokenizer.py`: rule-based tokenizer implementation
 - `src/npltk/tokenizer/hybrid_tokenizer.py`: hybrid (rule + SentencePiece) implementation
+- `src/npltk/lemmatizer/lemmatizer.py`: primary lemmatizer pipeline
+- `src/npltk/lemmatizer/hybrid_lemmatizer.py`: compatibility alias (`HybridLemmatizer`)
+- `src/npltk/lemmatizer/rule_stripper.py`: ordered suffix stripping rules
+- `src/npltk/lemmatizer/data/lemma_dict.json`: compact exception dictionary
 - `src/npltk/normalizer/`: normalization framework and rules
 - `src/npltk/stop_word/remover.py`: stopword remover
 - `examples/`: runnable examples
@@ -44,12 +50,16 @@ Hybrid mode requires `sentencepiece` (already listed in `setup.py`).
 
 ```python
 from npltk import create_tokenizer
+from npltk import Lemmatizer
 
 # Default: hybrid mode (falls back to rule mode if model/dependency not available)
 tokenizer = create_tokenizer()
 
 tokens = tokenizer.tokenize("नेपाल एक सुन्दर देश हो।")
 print([t.text for t in tokens])
+
+lemmatizer = Lemmatizer()
+print(lemmatizer.lemmatize("गयो"))  # जानु
 ```
 
 ## Public API
@@ -97,6 +107,51 @@ Splits into sentences and tokenizes each sentence.
 
 ### `detokenize(tokens: List[Token]) -> str`
 Reconstructs text from tokens.
+
+## 3) Lemmatizer API
+
+Locations:
+- `src/npltk/lemmatizer/lemmatizer.py`
+- `src/npltk/lemmatizer/hybrid_lemmatizer.py` (alias)
+
+Classes:
+- `Lemmatizer`: primary class
+- `HybridLemmatizer`: backward-compatible alias of `Lemmatizer`
+
+Constructor:
+
+```python
+Lemmatizer(
+  dictionary_path: str | Path | None = None,
+  *,
+  cache_size: int = 4096,
+  min_root_len: int = 2,
+)
+```
+
+Parameters:
+- `dictionary_path`: optional path to custom lemma dictionary JSON
+- `cache_size`: maximum in-memory LRU-like cache size
+- `min_root_len`: minimum root length for stripping rules
+
+Methods:
+
+```python
+lemmatize(word: str) -> str
+lemmatize_many(words: list[str]) -> list[str]
+```
+
+Lemmatizer flow:
+- cache lookup
+- dictionary lookup
+- rule-based suffix stripping
+- fallback to original word
+
+Dictionary formats supported:
+- Flat: `{ "word": "lemma" }`
+- Compact: `{ "lemma": ["form1", "form2"] }`
+
+Current dictionary is compact and exception-focused.
 
 ## Token Data Structures
 
@@ -265,6 +320,29 @@ print([t.text for t in filtered])
 print(info)
 ```
 
+### F) Lemmatization (single and batch)
+
+```python
+from npltk import Lemmatizer
+
+lem = Lemmatizer()
+
+print(lem.lemmatize("गयो"))       # जानु
+print(lem.lemmatize("घरहरूमा"))    # घर
+
+words = ["गयो", "खायो", "किताबबाट", "मलाई"]
+print(lem.lemmatize_many(words))
+```
+
+### G) Backward compatibility alias
+
+```python
+from npltk.lemmatizer.hybrid_lemmatizer import HybridLemmatizer
+
+lem = HybridLemmatizer()
+print(lem.lemmatize("गयो"))
+```
+
 ## Examples Included
 
 - `examples/tokenizer_demo.py`
@@ -275,6 +353,9 @@ print(info)
   - writes output to `normalizer_output.txt`
 - `examples/example_stopwords.py`
   - tokenization + stopword removal flow
+- `examples/lemmatizer_demo.py`
+  - lemmatizer and compatibility alias output side-by-side
+  - writes output to `lemmatizer_output.txt`
 
 Run examples from project root:
 
@@ -282,6 +363,7 @@ Run examples from project root:
 python examples/tokenizer_demo.py
 python examples/normalize_demo.py
 python examples/example_stopwords.py
+python examples/lemmatizer_demo.py
 ```
 
 If needed, set source path:
