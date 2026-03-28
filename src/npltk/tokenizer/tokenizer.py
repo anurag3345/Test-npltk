@@ -7,8 +7,9 @@ from __future__ import annotations
 
 from typing import List
 
+from .detokenize import detokenize_tokens
 from .sentence_splitter import split_sentences
-from .types import Token, TokenType, TokenizedSentence
+from .types import Token, TokenizedSentence
 from .word_tokenizer import tokenize_words
 
 
@@ -54,21 +55,5 @@ class NepaliTokenizer:
         return out
 
     def detokenize(self, tokens: List[Token]) -> str:
-        """
-        Reconstruct text from tokens.
-        Sub-word pieces are joined directly (no space before SUBWORD_DEV
-        unless it is the first token or follows punctuation).
-        """
-        parts: List[str] = []
-        for i, tok in enumerate(tokens):
-            if i == 0:
-                parts.append(tok.text)
-            elif tok.type == TokenType.SUBWORD_DEV:
-                parts.append(tok.text)          # join sub-words without space
-            elif tok.type == TokenType.PUNCT:
-                parts.append(tok.text)          # no space before punctuation
-            elif tokens[i - 1].type == TokenType.PUNCT and tokens[i - 1].text in ("(", "[", "{", "\u00ab", "\u201c", "\u2018"):
-                parts.append(tok.text)          # no space after opening bracket
-            else:
-                parts.append(" " + tok.text)
-        return "".join(parts)
+        """Reconstruct text from tokens."""
+        return detokenize_tokens(tokens)

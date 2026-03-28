@@ -11,9 +11,9 @@ from the tokenization output.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
-from typing import List, Optional
+from typing import Callable, List, Optional
 
+from .detokenize import detokenize_tokens
 from .rule_engine import PreToken, pre_tokenize
 from .sentence_splitter import split_sentences, SentenceSpan
 from .types import Token, TokenType, TokenizedSentence
@@ -33,7 +33,12 @@ def _load_sp(model_path: str):
             "Install it with:  pip install sentencepiece"
         ) from exc
     proc = spm.SentencePieceProcessor()
-    proc.load(model_path)
+    # sentencepiece stubs often expose `Load` while runtime may also allow
+    # lowercase `load`; resolve dynamically to keep type-checkers happy.
+    loader = getattr(proc, "Load", None) or getattr(proc, "load", None)
+    if not callable(loader):
+        raise AttributeError("SentencePieceProcessor has no Load/load method")
+    loader(model_path)
     return proc
 
 
@@ -57,26 +62,29 @@ def _expand_dev_token(pt: PreToken, sp) -> List[Token]:
         return [Token(clean or pt.text, pt.start, pt.end, TokenType.WORD_DEV)]
 
     tokens: List[Token] = []
-    cursor = pt.start            # current position in original string
+    cursor = pt.start
     raw = pt.text
+    consumed = 0
 
     for i, piece in enumerate(pieces):
         clean = piece.lstrip("\u2581")   # remove sentencepiece space-prefix marker
         if not clean:
             continue
 
-        # Find piece in the remaining raw text (left-to-right, greedy)
+        # Find piece in the remaining raw text (left-to-right, greedy).
+        # Track consumed chars so absolute offsets remain monotonic.
         idx = raw.find(clean)
         if idx == -1:
             # fallback: emit with best-guess span
             tokens.append(Token(clean, cursor, cursor + len(clean), TokenType.SUBWORD_DEV))
             cursor += len(clean)
         else:
-            abs_start = pt.start + idx
+            abs_start = pt.start + consumed + idx
             abs_end   = abs_start + len(clean)
             tokens.append(Token(clean, abs_start, abs_end, TokenType.SUBWORD_DEV))
             # Advance past this piece in the local raw string
             raw    = raw[idx + len(clean):]
+            consumed += idx + len(clean)
             cursor = abs_end
 
     return tokens if tokens else [Token(pt.text, pt.start, pt.end, TokenType.WORD_DEV)]
@@ -111,6 +119,10 @@ class NepaliHybridTokenizer:
     subword : bool
         If True (default), Devanagari words are segmented into sub-word
         pieces by the SP model.  Set to False to fall back to pure rule-based.
+    preprocess : callable, optional
+        Optional text preprocessor applied before tokenization (for example,
+        normalizer output used during model training). If preprocessing
+        changes text length, spans are relative to the preprocessed text.
     """
 
     def __init__(
@@ -120,10 +132,12 @@ class NepaliHybridTokenizer:
         split_into_sentences: bool = True,
         keep_punct: bool = True,
         subword: bool = True,
+        preprocess: Optional[Callable[[str], str]] = None,
     ) -> None:
         self.split_into_sentences = split_into_sentences
         self.keep_punct = keep_punct
         self.subword = subword
+        self.preprocess = preprocess
         self._sp = None
 
         if subword:
@@ -154,7 +168,8 @@ class NepaliHybridTokenizer:
     # -------------------------------------------------------------------
     def tokenize(self, text: str) -> List[Token]:
         """Tokenize *text* into a flat list of Tokens (no sentence grouping)."""
-        pre = pre_tokenize(text, keep_punct=self.keep_punct)
+        prepared = self.preprocess(text) if self.preprocess is not None else text
+        pre = pre_tokenize(prepared, keep_punct=self.keep_punct)
         return self._pre_to_tokens(pre)
 
     def tokenize_sentences(self, text: str) -> List[TokenizedSentence]:
@@ -162,11 +177,14 @@ class NepaliHybridTokenizer:
         Split *text* into sentences then tokenize each one.
         Token spans are global (relative to the original *text*).
         """
-        if not self.split_into_sentences:
-            toks = self.tokenize(text)
-            return [TokenizedSentence(sentence=text, start=0, end=len(text), tokens=toks)]
+        prepared = self.preprocess(text) if self.preprocess is not None else text
 
-        spans: List[SentenceSpan] = split_sentences(text)
+        if not self.split_into_sentences:
+            pre = pre_tokenize(prepared, keep_punct=self.keep_punct)
+            toks = self._pre_to_tokens(pre)
+            return [TokenizedSentence(sentence=prepared, start=0, end=len(prepared), tokens=toks)]
+
+        spans: List[SentenceSpan] = split_sentences(prepared)
         result: List[TokenizedSentence] = []
 
         for s in spans:
@@ -184,21 +202,5 @@ class NepaliHybridTokenizer:
         return result
 
     def detokenize(self, tokens: List[Token]) -> str:
-        """
-        Reconstruct text from tokens.
-        Sub-word pieces are joined directly (no space before SUBWORD_DEV
-        unless it is the first token or follows punctuation).
-        """
-        parts: List[str] = []
-        for i, tok in enumerate(tokens):
-            if i == 0:
-                parts.append(tok.text)
-            elif tok.type == TokenType.SUBWORD_DEV:
-                parts.append(tok.text)          # join sub-words without space
-            elif tok.type == TokenType.PUNCT:
-                parts.append(tok.text)          # no space before punctuation
-            elif tokens[i - 1].type == TokenType.PUNCT and tokens[i-1].text in ("(", "[", "{", "\u00ab", "\u201c", "\u2018"):
-                parts.append(tok.text)          # no space after opening bracket
-            else:
-                parts.append(" " + tok.text)
-        return "".join(parts)
+        """Reconstruct text from tokens."""
+        return detokenize_tokens(tokens)

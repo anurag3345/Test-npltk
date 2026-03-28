@@ -16,9 +16,8 @@ from dataclasses import dataclass, field
 from typing import Dict, Any, Tuple, List, Set
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+
 #  Constants
-# ═══════════════════════════════════════════════════════════════════════════════
 
 DEVANAGARI_WORD = re.compile(r"^[\u0900-\u097F]+$")
 
@@ -30,11 +29,11 @@ SPACE_MAP = {
     "\uFEFF": "",    # BOM → remove
 }
 
-# ── Nepali digit ↔ ASCII digit ──────────────────────────────────────────────
+#  Nepali digit ↔ ASCII digit 
 NEPALI_TO_ASCII = str.maketrans("०१२३४५६७८९", "0123456789")
 ASCII_TO_NEPALI = str.maketrans("0123456789", "०१२३४५६७८९")
 
-# ── Quotation marks → standard ASCII quotes ─────────────────────────────────
+#  Quotation marks → standard ASCII quotes 
 QUOTE_MAP = {
     "\u201C": '"',   # left double quotation mark  "
     "\u201D": '"',   # right double quotation mark "
@@ -46,7 +45,7 @@ QUOTE_MAP = {
     "\u201A": "'",   # single low-9 quotation mark ‚
 }
 
-# ── Common Nepali abbreviations that contain a dot ───────────────────────────
+#  Common Nepali abbreviations that contain a dot 
 # These should NOT trigger sentence splits.
 ABBREVIATIONS: Set[str] = {
     "डा.", "प्रा.", "श्री.", "सु.", "श्रीमती.", "प्रो.",
@@ -55,7 +54,7 @@ ABBREVIATIONS: Set[str] = {
     "मा.वि.", "ला.वि.", "प्र.अ.", "उ.म.", "जि.",
 }
 
-# ── Expanded postposition list  (sorted longest-first for greedy match) ──────
+#  Expanded postposition list  (sorted longest-first for greedy match) 
 POSTPOSITIONS = sorted({
     # locative / ablative / dative / instrumental
     "देखि", "सम्म", "बाट", "लाई", "सँग", "द्वारा",
@@ -78,10 +77,7 @@ POSTPOSITIONS = sorted({
     "वरिपरि",
 }, key=len, reverse=True)
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
 #  Rule 1 — Unicode NFC
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class UnicodeNFC:
@@ -93,9 +89,8 @@ class UnicodeNFC:
         return out, {"changed": out != text}
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+
 #  Rule 2 — Whitespace normalization
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class WhitespaceNormalize:
@@ -112,10 +107,8 @@ class WhitespaceNormalize:
         return text, {"changed": before != text}
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Rule 3 — Remove invisible control characters
-# ═══════════════════════════════════════════════════════════════════════════════
 
+#  Rule 3 — Remove invisible control characters
 @dataclass
 class RemoveInvisibleChars:
     """Strip C0 control chars (except \\n and \\t)."""
@@ -135,9 +128,7 @@ class RemoveInvisibleChars:
         return out, {"removed": removed, "changed": before != out}
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 #  Rule 4 — ZWJ / ZWNJ cleanup
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class ZWJZWNJCleanup:
@@ -150,9 +141,8 @@ class ZWJZWNJCleanup:
         return out, {"changed": before != out}
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+
 #  Rule 5 — Halant (virama) cleanup
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class HalantCleanup:
@@ -165,10 +155,7 @@ class HalantCleanup:
         text = re.sub(r"्{2,}", "्", text)   # repeated halant
         return text, {"changed": before != text}
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
 #  Rule 6 — Diacritic deduplication
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class DiacriticDedupe:
@@ -182,9 +169,7 @@ class DiacriticDedupe:
         return text, {"changed": before != text}
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Rule 7 — Quotation mark normalization  [NEW]
-# ═══════════════════════════════════════════════════════════════════════════════
+#  Rule 7 — Quotation mark normalization  
 
 @dataclass
 class QuotationNormalize:
@@ -198,9 +183,7 @@ class QuotationNormalize:
         return text, {"changed": before != text}
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Rule 8 — Nepali digit normalization  [NEW]
-# ═══════════════════════════════════════════════════════════════════════════════
+#  Rule 8 — Nepali digit normalization  
 
 @dataclass
 class NepaliDigitNormalize:
@@ -219,10 +202,7 @@ class NepaliDigitNormalize:
         return text, {"changed": before != text}
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Rule 9 — Repetition compression (social media)  [NEW]
-# ═══════════════════════════════════════════════════════════════════════════════
-
+#  Rule 9 — Repetition compression (social media)  
 @dataclass
 class RepetitionCompress:
     """
@@ -248,9 +228,7 @@ class RepetitionCompress:
         return text, {"changed": before != text}
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Rule 10 — Script-boundary splitter  [NEW]
-# ═══════════════════════════════════════════════════════════════════════════════
+#  Rule 10 — Script-boundary splitter  
 
 # Patterns to detect Devanagari and Latin blocks
 _DEV_CHAR = re.compile(r"[\u0900-\u097F]")
@@ -317,9 +295,7 @@ class ScriptBoundarySplit:
         return "".join(parts)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Rule 11 — Hashtag / Mention splitter  [NEW]
-# ═══════════════════════════════════════════════════════════════════════════════
+#  Rule 11 — Hashtag / Mention splitter 
 
 _HASHTAG_RE = re.compile(r"([#@])([\w\u0900-\u097F]+)")
 
@@ -340,9 +316,7 @@ class HashtagMentionSplit:
         return text, {"splits": count, "changed": before != text}
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Rule 12 — Abbreviation protector  [NEW]
-# ═══════════════════════════════════════════════════════════════════════════════
+#  Rule 12 — Abbreviation protector  
 
 # Build a regex that replaces known abbreviation dots with a placeholder
 # so that downstream sentence splitters don't break on them.
@@ -385,10 +359,7 @@ class AbbreviationRestore:
         return text, {"changed": before != text}
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 #  Rule 13 — Postposition split  (IMPROVED — expanded list)
-# ═══════════════════════════════════════════════════════════════════════════════
-
 @dataclass
 class PostpositionSplit:
     """

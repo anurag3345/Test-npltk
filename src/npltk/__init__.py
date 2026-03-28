@@ -1,32 +1,12 @@
 """
 npltk - Nepali Language Processing Toolkit
 -------------------------------------------
-Currently includes:
-- NepaliTokenizer: Tokenization for Nepali text
-
-Future modules:
-- NepaliStemmer
-- NepaliLemmatizer
+Public API focuses on one tokenizer entry-point:
+- create_tokenizer
 """
+from .tokenizer.factory import create_tokenizer
 
-from .tokenizer.tokenizer import NepaliTokenizer
-
-# Placeholder imports for future tools
-try:
-    from .stemmer.stemmer import NepaliStemmer
-except ImportError:
-    class NepaliStemmer:
-        def __init__(self, *args, **kwargs):
-            raise NotImplementedError("NepaliStemmer is not implemented yet.")
-
-try:
-    from .lemmatizer.lemmatizer import NepaliLemmatizer
-except ImportError:
-    class NepaliLemmatizer:
-        def __init__(self, *args, **kwargs):
-            raise NotImplementedError("NepaliLemmatizer is not implemented yet.")
-
-__all__ = ["NepaliTokenizer", "NepaliStemmer", "NepaliLemmatizer"]
+__all__ = ["create_tokenizer"]
 
 __version__ = "0.1.0"
 __author__ = [
