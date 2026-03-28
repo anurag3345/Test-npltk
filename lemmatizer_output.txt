@@ -1,0 +1,55 @@
+npltk Lemmatizer Demo
+============================================================
+
+[CASE 1] गयो
+  Lemmatizer       : जानु
+  HybridLemmatizer : जानु
+  CHECK_ALIAS      : PASS
+
+[CASE 2] गए
+  Lemmatizer       : जानु
+  HybridLemmatizer : जानु
+  CHECK_ALIAS      : PASS
+
+[CASE 3] खायो
+  Lemmatizer       : खानु
+  HybridLemmatizer : खानु
+  CHECK_ALIAS      : PASS
+
+[CASE 4] घरहरूमा
+  Lemmatizer       : घर
+  HybridLemmatizer : घर
+  CHECK_ALIAS      : PASS
+
+[CASE 5] किताबबाट
+  Lemmatizer       : किताब
+  HybridLemmatizer : किताब
+  CHECK_ALIAS      : PASS
+
+[CASE 6] गर्दैछन्
+  Lemmatizer       : गर्नु
+  HybridLemmatizer : गर्नु
+  CHECK_ALIAS      : PASS
+
+[CASE 7] मलाई
+  Lemmatizer       : म
+  HybridLemmatizer : म
+  CHECK_ALIAS      : PASS
+
+[CASE 8] तिम्रो
+  Lemmatizer       : तिमी
+  HybridLemmatizer : तिमी
+  CHECK_ALIAS      : PASS
+
+[CASE 9] उसलाई
+  Lemmatizer       : ऊ
+  HybridLemmatizer : ऊ
+  CHECK_ALIAS      : PASS
+
+[CASE 10] अपरिवर्तित
+  Lemmatizer       : अपरिवर्तित
+  HybridLemmatizer : अपरिवर्तित
+  CHECK_ALIAS      : PASS
+
+Batch lemmatize_many output:
+['जानु', 'जानु', 'खानु', 'घर', 'किताब', 'गर्नु', 'म', 'तिमी', 'ऊ', 'अपरिवर्तित']

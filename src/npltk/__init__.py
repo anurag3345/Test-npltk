@@ -5,8 +5,9 @@ Public API focuses on one tokenizer entry-point:
 - create_tokenizer
 """
 from .tokenizer.factory import create_tokenizer
+from .lemmatizer import Lemmatizer
 
-__all__ = ["create_tokenizer"]
+__all__ = ["create_tokenizer", "Lemmatizer"]
 
 __version__ = "0.1.0"
 __author__ = [
