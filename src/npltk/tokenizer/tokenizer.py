@@ -1,80 +1,27 @@
-# import os
-# import sentencepiece as spm
-
-
-# class NepaliTokenizer:
-#     """
-#     Nepali Tokenizer using SentencePiece.
-#     Provides methods to tokenize (encode) and detokenize (decode) Nepali text.
-
-#     Example:
-#         tokenizer = NepaliTokenizer()
-#         tokens = tokenizer.tokenize("नेपाल एक सुन्दर देश हो।")
-#         text = tokenizer.detokenize(tokens)
-#     """
-
-#     def __init__(self, model_path=None):
-#         """
-#         Initialize the tokenizer.
-
-#         Args:
-#             model_path (str, optional): Path to the SentencePiece model file (.model).
-#                                         If None, loads from the default models folder.
-#         """
-#         if model_path is None:
-#             # Default model path inside package
-#             model_path = os.path.join(os.path.dirname(__file__), "models", "nepali_tokenizer.model")
-
-#         if not os.path.exists(model_path):
-#             raise FileNotFoundError(f"SentencePiece model not found at: {model_path}")
-
-#         self.sp = spm.SentencePieceProcessor()
-#         self.sp.load(model_path)
-
-#     def tokenize(self, text):
-#         """
-#         Tokenize Nepali text into subword pieces.
-
-#         Args:
-#             text (str): Input text in Nepali.
-#         Returns:
-#             list[str]: List of subword tokens.
-#         """
-#         return self.sp.encode(text, out_type=str)
-
-#     def detokenize(self, pieces):
-#         """
-#         Detokenize a list of subword pieces back into a string.
-
-#         Args:
-#             pieces (list[str]): List of subword tokens.
-#         Returns:
-#             str: Reconstructed text.
-#         """
-#         return self.sp.decode_pieces(pieces)
-
-
+"""
+tokenizer.py
+------------
+Public-facing rule-based tokenizer for Nepali text.
+"""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import List
 
-from .sentence_splitter import split_sentences, SentenceSpan
-from .types import Token
+from .sentence_splitter import split_sentences
+from .types import Token, TokenType, TokenizedSentence
 from .word_tokenizer import tokenize_words
-
-
-@dataclass
-class TokenizedSentence:
-    sentence: str
-    start: int
-    end: int
-    tokens: List[Token]
 
 
 class NepaliTokenizer:
     """
-    Public tokenizer class for your toolkit.
+    Public tokenizer class for the npltk toolkit.
+
+    Parameters
+    ----------
+    split_into_sentences : bool
+        If True (default), ``tokenize_sentences`` groups tokens by sentence.
+    keep_punct : bool
+        If True (default), punctuation is emitted as PUNCT tokens.
     """
 
     def __init__(self, *, split_into_sentences: bool = True, keep_punct: bool = True):
@@ -105,3 +52,23 @@ class NepaliTokenizer:
             out.append(TokenizedSentence(sentence=s.text, start=s.start, end=s.end, tokens=global_tokens))
 
         return out
+
+    def detokenize(self, tokens: List[Token]) -> str:
+        """
+        Reconstruct text from tokens.
+        Sub-word pieces are joined directly (no space before SUBWORD_DEV
+        unless it is the first token or follows punctuation).
+        """
+        parts: List[str] = []
+        for i, tok in enumerate(tokens):
+            if i == 0:
+                parts.append(tok.text)
+            elif tok.type == TokenType.SUBWORD_DEV:
+                parts.append(tok.text)          # join sub-words without space
+            elif tok.type == TokenType.PUNCT:
+                parts.append(tok.text)          # no space before punctuation
+            elif tokens[i - 1].type == TokenType.PUNCT and tokens[i - 1].text in ("(", "[", "{", "\u00ab", "\u201c", "\u2018"):
+                parts.append(tok.text)          # no space after opening bracket
+            else:
+                parts.append(" " + tok.text)
+        return "".join(parts)

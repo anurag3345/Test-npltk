@@ -4,6 +4,9 @@ hybrid_tokenizer.py
 Stage-2 router: combines the rule engine pre-tokens with a trained
 SentencePiece Unigram model to produce sub-word-aware tokens for
 Devanagari text while leaving all other token types untouched.
+
+Optionally integrates the StopWordRemover to filter Nepali stopwords
+from the tokenization output.
 """
 from __future__ import annotations
 
@@ -13,7 +16,7 @@ from typing import List, Optional
 
 from .rule_engine import PreToken, pre_tokenize
 from .sentence_splitter import split_sentences, SentenceSpan
-from .types import Token, TokenType
+from .types import Token, TokenType, TokenizedSentence
 
 
 # ---------------------------------------------------------------------------
@@ -35,18 +38,7 @@ def _load_sp(model_path: str):
 
 
 # Default model path — bundled inside the package
-_DEFAULT_MODEL = os.path.join(os.path.dirname(__file__), "models", "nepali_sp.model")
-
-
-# ---------------------------------------------------------------------------
-# Output types
-# ---------------------------------------------------------------------------
-@dataclass
-class TokenizedSentence:
-    sentence: str
-    start: int
-    end: int
-    tokens: List[Token]
+_DEFAULT_MODEL = os.path.join(os.path.dirname(__file__), "models", "nepali_tokenizer.model")
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +53,7 @@ def _expand_dev_token(pt: PreToken, sp) -> List[Token]:
 
     # If SP returns the word as-is (single piece), emit as WORD_DEV
     if len(pieces) == 1:
-        clean = pieces[0].lstrip("▁")
+        clean = pieces[0].lstrip("\u2581")
         return [Token(clean or pt.text, pt.start, pt.end, TokenType.WORD_DEV)]
 
     tokens: List[Token] = []
@@ -69,7 +61,7 @@ def _expand_dev_token(pt: PreToken, sp) -> List[Token]:
     raw = pt.text
 
     for i, piece in enumerate(pieces):
-        clean = piece.lstrip("▁")   # remove sentencepiece space-prefix marker
+        clean = piece.lstrip("\u2581")   # remove sentencepiece space-prefix marker
         if not clean:
             continue
 
@@ -103,6 +95,9 @@ class NepaliHybridTokenizer:
     Stage 2 — model router:
         Devanagari (WORD_DEV) chunks → SentencePiece Unigram sub-word model.
         Latin / numbers / punctuation / emoji → passed through unchanged.
+
+    Stopword removal is available via the ``filter_stopwords()`` method,
+    which can be called on any token list after tokenization.
 
     Parameters
     ----------
@@ -202,7 +197,7 @@ class NepaliHybridTokenizer:
                 parts.append(tok.text)          # join sub-words without space
             elif tok.type == TokenType.PUNCT:
                 parts.append(tok.text)          # no space before punctuation
-            elif tokens[i - 1].type == TokenType.PUNCT and tokens[i-1].text in ("(", "[", "{", "«", """, "'"):
+            elif tokens[i - 1].type == TokenType.PUNCT and tokens[i-1].text in ("(", "[", "{", "\u00ab", "\u201c", "\u2018"):
                 parts.append(tok.text)          # no space after opening bracket
             else:
                 parts.append(" " + tok.text)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import List
 
 
 class TokenType(str, Enum):
@@ -20,3 +21,13 @@ class Token:
     start: int  # start offset in the input string
     end: int    # end offset (exclusive)
     type: TokenType
+
+
+@dataclass
+class TokenizedSentence:
+    """A sentence with its span in the original text and its tokens."""
+    sentence: str
+    start: int
+    end: int
+    tokens: List[Token]
+
