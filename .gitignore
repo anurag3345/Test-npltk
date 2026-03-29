@@ -1,4 +1,6 @@
 venv/
 tokenizer_output.txt
 normalizer_output.txt
+pos_tagger_output.txt
+lemmatizer_output.txt
 __pycache__/
